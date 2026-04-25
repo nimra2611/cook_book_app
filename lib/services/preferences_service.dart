@@ -53,24 +53,23 @@ class PreferencesService {
     await _prefs?.setString(_defaultCategoryKey, value);
   }
 
-  /// Get favorite meal IDs
+
   Set<String> getFavoriteMealIds() {
     return Set<String>.from(_prefs?.getStringList(_favoriteMealIdsKey) ?? []);
   }
 
-  /// Set favorite meal IDs
+
   Future<void> setFavoriteMealIds(Set<String> ids) async {
     await _prefs?.setStringList(_favoriteMealIdsKey, ids.toList());
   }
 
-  /// Add a favorite meal ID
   Future<void> addFavoriteMealId(String id) async {
     final favorites = getFavoriteMealIds();
     favorites.add(id);
     await setFavoriteMealIds(favorites);
   }
 
-  /// Remove a favorite meal ID
+
   Future<void> removeFavoriteMealId(String id) async {
     final favorites = getFavoriteMealIds();
     favorites.remove(id);

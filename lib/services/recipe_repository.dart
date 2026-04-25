@@ -1,55 +1,76 @@
-import 'api_service.dart';
-import 'preferences_service.dart';
-import '../models/recipe.dart';
+import '../models/models.dart';
+import 'recipe_service.dart';
+import 'favorite_service.dart';
 
-/// Repository for managing recipes with API integration
+/// Repository class responsible for business logic
+/// Single Responsibility: Orchestrate services and manage data flow
 class RecipeRepository {
-  final ApiService _apiService;
-  final PreferencesService _preferencesService;
+  final RecipeService _apiService;
+  final FavoriteService _favoriteService;
 
   // Cache for categories
   List<String>? _cachedCategories;
   
   // Cache for meals by category
-  final Map<String, List<Recipe>> _mealsByCategoryCache = {};
+  final Map<String, List<RecipeModel>> _mealsByCategoryCache = {};
 
   RecipeRepository({
-    ApiService? apiService,
-    PreferencesService? preferencesService,
-  })  : _apiService = apiService ?? ApiService(),
-        _preferencesService = preferencesService ?? PreferencesService();
+    RecipeService? apiService,
+    FavoriteService? favoriteService,
+  })  : _apiService = apiService ?? RecipeService(),
+        _favoriteService = favoriteService ?? FavoriteService();
 
-  /// Get favorite meal IDs from storage
-  Future<Set<String>> getFavoriteIds() async {
-    await _preferencesService.init();
-    return _preferencesService.getFavoriteMealIds();
+  /// Initialize repository
+  Future<void> init() async {
+    await _favoriteService.init();
   }
 
-  /// Check if a meal is favorite
-  Future<bool> isFavorite(String id) async {
-    final favorites = await getFavoriteIds();
-    return favorites.contains(id);
+  // ==================== FAVORITES ====================
+
+  /// Check if a meal is favorited
+  bool isFavorite(String id) {
+    return _favoriteService.isFavorite(id);
   }
 
   /// Toggle favorite status
   Future<void> toggleFavorite(String id) async {
-    final favorites = await getFavoriteIds();
-    if (favorites.contains(id)) {
-      favorites.remove(id);
-    } else {
-      favorites.add(id);
-    }
-    await _preferencesService.setFavoriteMealIds(favorites);
+    await _favoriteService.toggleFavorite(id);
   }
 
-  /// Get all categories (from API or cache)
+  /// Get all favorite IDs
+  Set<String> getFavoriteIds() {
+    return _favoriteService.getFavoriteIds();
+  }
+
+  /// Get all favorite recipes with full details
+  Future<List<RecipeModel>> getFavoriteRecipes() async {
+    final favoriteIds = _favoriteService.getFavoriteIds();
+    final favorites = <RecipeModel>[];
+    
+    for (final id in favoriteIds) {
+      try {
+        final recipe = await _apiService.fetchMealById(id);
+        if (recipe != null) {
+          favorites.add(recipe.copyWith(isFavorite: true));
+        }
+      } catch (e) {
+        print('Error loading favorite $id: $e');
+      }
+    }
+    
+    return favorites;
+  }
+
+  // ==================== CATEGORIES ====================
+
+  /// Get all categories (from cache or API)
   Future<List<String>> getCategories() async {
     if (_cachedCategories != null) {
       return _cachedCategories!;
     }
 
     try {
-      final categories = await _apiService.getCategories();
+      final categories = await _apiService.fetchCategoryNames();
       _cachedCategories = categories;
       return categories;
     } catch (e) {
@@ -58,16 +79,25 @@ class RecipeRepository {
     }
   }
 
-  /// Get a random meal for featured section
-  Future<Recipe?> getRandomMeal() async {
+  /// Get category models with full details
+  Future<List<CategoryModel>> getCategoryModels() async {
     try {
-      final favoriteIds = await getFavoriteIds();
-      final meal = await _apiService.getRandomMeal(
-        isFavorite: favoriteIds.isNotEmpty && favoriteIds.contains(null),
-      );
+      return await _apiService.fetchCategories();
+    } catch (e) {
+      print('Error fetching category models: $e');
+      return [];
+    }
+  }
+
+  // ==================== RECIPES ====================
+
+  /// Get a random meal for featured section
+  Future<RecipeModel?> getRandomMeal() async {
+    try {
+      final meal = await _apiService.fetchRandomMeal();
       
       if (meal != null) {
-        final isFav = await isFavorite(meal.id);
+        final isFav = _favoriteService.isFavorite(meal.id);
         return meal.copyWith(isFavorite: isFav);
       }
       return null;
@@ -78,33 +108,43 @@ class RecipeRepository {
   }
 
   /// Search meals by name
-  Future<List<Recipe>> searchMeals(String query) async {
+  Future<List<RecipeModel>> searchMeals(String query) async {
     if (query.isEmpty) return [];
     
     try {
-      final favoriteIds = await getFavoriteIds();
-      return await _apiService.searchMeals(query, favoriteIds: favoriteIds);
+      final meals = await _apiService.searchMeals(query);
+      
+      // Update favorite status
+      return meals.map((meal) {
+        return meal.copyWith(
+          isFavorite: _favoriteService.isFavorite(meal.id),
+        );
+      }).toList();
     } catch (e) {
       print('Error searching meals: $e');
       return [];
     }
   }
 
-  /// Get meal by ID
-  Future<Recipe?> getMealById(String id) async {
+  /// Get meal by ID with full details
+  Future<RecipeModel?> getMealById(String id) async {
     try {
-      final isFav = await isFavorite(id);
-      return await _apiService.getMealById(id, isFavorite: isFav);
+      final meal = await _apiService.fetchMealById(id);
+      
+      if (meal != null) {
+        final isFav = _favoriteService.isFavorite(id);
+        return meal.copyWith(isFavorite: isFav);
+      }
+      return null;
     } catch (e) {
       print('Error fetching meal by ID: $e');
       return null;
     }
   }
 
-  /// Get meals by category
-  Future<List<Recipe>> getMealsByCategory(String category) async {
+  /// Get meals by category (with caching)
+  Future<List<RecipeModel>> getMealsByCategory(String category) async {
     if (category == 'All') {
-      // For "All" category, fetch from multiple categories
       return _getAllMeals();
     }
 
@@ -114,27 +154,31 @@ class RecipeRepository {
     }
 
     try {
-      final favoriteIds = await getFavoriteIds();
-      final recipes = await _apiService.getMealsByCategory(
-        category,
-        favoriteIds: favoriteIds,
-      );
+      final recipes = await _apiService.fetchMealsByCategory(category);
+      
+      // Update favorite status
+      final updatedRecipes = recipes.map((recipe) {
+        return recipe.copyWith(
+          isFavorite: _favoriteService.isFavorite(recipe.id),
+        );
+      }).toList();
       
       // Cache the result
-      _mealsByCategoryCache[category] = recipes;
-      return recipes;
+      _mealsByCategoryCache[category] = updatedRecipes;
+      return updatedRecipes;
     } catch (e) {
       print('Error fetching meals by category: $e');
       return [];
     }
   }
 
-  /// Get all meals (fetch from multiple categories)
-  Future<List<Recipe>> _getAllMeals() async {
-    final allRecipes = <Recipe>[];
+  /// Get all meals from multiple categories
+  Future<List<RecipeModel>> _getAllMeals() async {
+    final allRecipes = <RecipeModel>[];
     final categories = _cachedCategories ?? await getCategories();
     
-    for (final category in categories.take(5)) { // Limit to 5 categories to avoid too many API calls
+    // Limit to first 5 categories to avoid too many API calls
+    for (final category in categories.take(5)) {
       try {
         final recipes = await getMealsByCategory(category);
         allRecipes.addAll(recipes);
@@ -146,10 +190,17 @@ class RecipeRepository {
     return allRecipes;
   }
 
-  /// Clear caches
+  // ==================== CACHE MANAGEMENT ====================
+
+  /// Clear all caches
   void clearCache() {
     _cachedCategories = null;
     _mealsByCategoryCache.clear();
+  }
+
+  /// Clear cache for specific category
+  void clearCategoryCache(String category) {
+    _mealsByCategoryCache.remove(category);
   }
 
   /// Dispose resources

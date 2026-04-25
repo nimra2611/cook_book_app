@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/recipe.dart';
 import '../utils/constants.dart';
-import '../screens/recipe_details_screen.dart'; // Is import ko check karein
 import 'rating_stars.dart';
 
+/// A card widget that displays recipe information
 class RecipeCard extends StatelessWidget {
   final Recipe recipe;
   final VoidCallback? onTap;
@@ -22,15 +22,7 @@ class RecipeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      // FIX: Agar bahar se onTap nahi aa raha, toh default navigate karega
-      onTap: onTap ?? () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => RecipeDetailsScreen(recipe: recipe),
-          ),
-        );
-      },
+      onTap: onTap,
       child: Container(
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
@@ -49,11 +41,16 @@ class RecipeCard extends StatelessWidget {
                       fit: BoxFit.cover,
                       placeholder: (context, url) => Container(
                         color: Colors.white10,
-                        child: const Center(child: CircularProgressIndicator()),
+                        child: const Center(
+                          child: CircularProgressIndicator(),
+                        ),
                       ),
                       errorWidget: (context, url, error) => Container(
                         color: Colors.white10,
-                        child: const Icon(Icons.broken_image, color: Colors.white24),
+                        child: const Icon(
+                          Icons.broken_image,
+                          color: Colors.white24,
+                        ),
                       ),
                     ),
                   ),
@@ -66,8 +63,12 @@ class RecipeCard extends StatelessWidget {
                         radius: 16,
                         backgroundColor: Colors.black.withOpacity(0.3),
                         child: Icon(
-                          recipe.isFavorite ? Icons.favorite : Icons.favorite_border,
-                          color: recipe.isFavorite ? AppColors.favoriteAlt : AppColors.textPrimary,
+                          recipe.isFavorite
+                              ? Icons.favorite
+                              : Icons.favorite_border,
+                          color: recipe.isFavorite
+                              ? AppColors.favoriteAlt
+                              : AppColors.textPrimary,
                           size: 18,
                         ),
                       ),
@@ -92,12 +93,26 @@ class RecipeCard extends StatelessWidget {
                     children: [
                       _buildCategoryChip(recipe.category),
                       const Spacer(),
-                      const Icon(Icons.access_time, size: 12, color: AppColors.textHint),
+                      const Icon(
+                        Icons.access_time,
+                        size: 12,
+                        color: AppColors.textHint,
+                      ),
                       const SizedBox(width: 4),
-                      Text(recipe.time, style: AppTextStyles.caption),
+                      Text(
+                        recipe.time,
+                        style: AppTextStyles.caption,
+                      ),
                       const SizedBox(width: 6),
-                      const Icon(Icons.star, size: 12, color: AppColors.textHint),
-                      Text(' ${recipe.rating}.0', style: AppTextStyles.caption),
+                      const Icon(
+                        Icons.star,
+                        size: 12,
+                        color: AppColors.textHint,
+                      ),
+                      Text(
+                        ' ${recipe.rating}.0',
+                        style: AppTextStyles.caption,
+                      ),
                     ],
                   ),
                 ],
@@ -119,16 +134,23 @@ class RecipeCard extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.restaurant_menu, size: 10, color: AppColors.textHint),
+          const Icon(
+            Icons.restaurant_menu,
+            size: 10,
+            color: AppColors.textHint,
+          ),
           const SizedBox(width: 4),
-          Text(label, style: AppTextStyles.caption),
+          Text(
+            label,
+            style: AppTextStyles.caption,
+          ),
         ],
       ),
     );
   }
 }
 
-/// Compact card ko bhi fix kar diya hai
+/// A compact recipe card for grid layouts
 class CompactRecipeCard extends StatelessWidget {
   final Recipe recipe;
   final VoidCallback? onTap;
@@ -144,14 +166,7 @@ class CompactRecipeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap ?? () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => RecipeDetailsScreen(recipe: recipe),
-          ),
-        );
-      },
+      onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
           color: AppColors.cardBackgroundAlt,
@@ -164,14 +179,18 @@ class CompactRecipeCard extends StatelessWidget {
               child: Stack(
                 children: [
                   ClipRRect(
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(20),
+                    ),
                     child: CachedNetworkImage(
                       imageUrl: recipe.imagePath,
                       width: double.infinity,
                       fit: BoxFit.cover,
                       placeholder: (context, url) => Container(
                         color: Colors.grey[900]!,
-                        child: const Center(child: CircularProgressIndicator()),
+                        child: const Center(
+                          child: CircularProgressIndicator(),
+                        ),
                       ),
                       errorWidget: (context, url, error) => Container(
                         color: Colors.grey[900],
@@ -188,8 +207,12 @@ class CompactRecipeCard extends StatelessWidget {
                         radius: 16,
                         backgroundColor: Colors.black45,
                         child: Icon(
-                          recipe.isFavorite ? Icons.favorite : Icons.favorite_border,
-                          color: recipe.isFavorite ? AppColors.favorite : AppColors.textPrimary,
+                          recipe.isFavorite
+                              ? Icons.favorite
+                              : Icons.favorite_border,
+                          color: recipe.isFavorite
+                              ? AppColors.favorite
+                              : AppColors.textPrimary,
                           size: 18,
                         ),
                       ),
@@ -214,8 +237,15 @@ class CompactRecipeCard extends StatelessWidget {
                     children: [
                       RatingStars(rating: recipe.rating, size: 14),
                       const Spacer(),
-                      const Icon(Icons.access_time, color: AppColors.star, size: 12),
-                      Text(' ${recipe.time}', style: AppTextStyles.caption),
+                      const Icon(
+                        Icons.access_time,
+                        color: AppColors.star,
+                        size: 12,
+                      ),
+                      Text(
+                        ' ${recipe.time}',
+                        style: AppTextStyles.caption,
+                      ),
                     ],
                   ),
                 ],

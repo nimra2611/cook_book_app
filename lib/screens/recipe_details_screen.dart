@@ -11,7 +11,7 @@ class RecipeDetailsScreen extends StatefulWidget {
 
   const RecipeDetailsScreen({
     super.key,
-    this.recipeId, required Recipe recipe,
+    this.recipeId,
   });
 
   @override

@@ -1,24 +1,27 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import '../models/recipe.dart';
+import '../models/models.dart';
 
-
-class ApiService {
+/// Service class responsible ONLY for API communication
+/// Single Responsibility: Handle HTTP requests to TheMealDB API
+class RecipeService {
   static const String _baseUrl = 'https://www.themealdb.com/api/json/v1/1';
   
   final http.Client _client;
   
-  ApiService({http.Client? client}) : _client = client ?? http.Client();
+  RecipeService({http.Client? client}) : _client = client ?? http.Client();
 
-
-  Future<List<String>> getCategories() async {
+  /// Fetch all categories from API
+  Future<List<CategoryModel>> fetchCategories() async {
     try {
       final response = await _client.get(Uri.parse('$_baseUrl/categories.php'));
       
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final categories = data['categories'] as List<dynamic>;
-        return categories.map((cat) => cat['strCategory'].toString()).toList();
+        return categories
+            .map((cat) => CategoryModel.fromTheMealDb(cat))
+            .toList();
       } else {
         throw Exception('Failed to load categories: ${response.statusCode}');
       }
@@ -27,8 +30,14 @@ class ApiService {
     }
   }
 
+  /// Fetch category names only (for backward compatibility)
+  Future<List<String>> fetchCategoryNames() async {
+    final categories = await fetchCategories();
+    return categories.map((c) => c.name).toList();
+  }
 
-  Future<Recipe?> getRandomMeal({bool isFavorite = false}) async {
+  /// Fetch a random meal from API
+  Future<RecipeModel?> fetchRandomMeal() async {
     try {
       final response = await _client.get(Uri.parse('$_baseUrl/random.php'));
       
@@ -36,7 +45,7 @@ class ApiService {
         final data = json.decode(response.body);
         final meals = data['meals'] as List<dynamic>;
         if (meals.isNotEmpty) {
-          return Recipe.fromTheMealDb(meals[0], isFavorite: isFavorite);
+          return RecipeModel.fromTheMealDb(meals[0]);
         }
         return null;
       } else {
@@ -47,8 +56,8 @@ class ApiService {
     }
   }
 
-
-  Future<List<Recipe>> searchMeals(String query, {Set<String>? favoriteIds}) async {
+  /// Search meals by name from API
+  Future<List<RecipeModel>> searchMeals(String query) async {
     if (query.isEmpty) return [];
     
     try {
@@ -63,10 +72,7 @@ class ApiService {
         if (meals == null) return [];
         
         return (meals as List<dynamic>)
-            .map((meal) => Recipe.fromTheMealDb(
-                  meal,
-                  isFavorite: favoriteIds?.contains(meal['idMeal']) ?? false,
-                ))
+            .map((meal) => RecipeModel.fromTheMealDb(meal))
             .toList();
       } else {
         throw Exception('Failed to search meals: ${response.statusCode}');
@@ -76,8 +82,8 @@ class ApiService {
     }
   }
 
-
-  Future<Recipe?> getMealById(String id, {bool isFavorite = false}) async {
+  /// Get meal details by ID from API
+  Future<RecipeModel?> fetchMealById(String id) async {
     try {
       final response = await _client.get(
         Uri.parse('$_baseUrl/lookup.php?i=$id'),
@@ -88,7 +94,7 @@ class ApiService {
         final meals = data['meals'] as List<dynamic>;
         
         if (meals.isNotEmpty) {
-          return Recipe.fromTheMealDb(meals[0], isFavorite: isFavorite);
+          return RecipeModel.fromTheMealDb(meals[0]);
         }
         return null;
       } else {
@@ -99,11 +105,8 @@ class ApiService {
     }
   }
 
-
-  Future<List<Recipe>> getMealsByCategory(
-    String category, {
-    Set<String>? favoriteIds,
-  }) async {
+  /// Get meals by category from API (returns basic info)
+  Future<List<RecipeModel>> fetchMealsByCategory(String category) async {
     try {
       final response = await _client.get(
         Uri.parse('$_baseUrl/filter.php?c=$category'),
@@ -115,21 +118,20 @@ class ApiService {
         
         if (meals == null) return [];
         
-
+        // Filter only returns id, name, and thumbnail
         final mealList = meals as List<dynamic>;
-        final recipes = <Recipe>[];
         
-        for (var meal in mealList) {
-          final fullRecipe = await getMealById(
-            meal['idMeal'].toString(),
-            isFavorite: favoriteIds?.contains(meal['idMeal']) ?? false,
+        // Convert to RecipeModel with limited data
+        return mealList.map((meal) {
+          return RecipeModel(
+            id: meal['idMeal'].toString(),
+            title: meal['strMeal'].toString(),
+            category: category,
+            time: '30m',
+            rating: 4,
+            imagePath: meal['strMealThumb'].toString(),
           );
-          if (fullRecipe != null) {
-            recipes.add(fullRecipe);
-          }
-        }
-        
-        return recipes;
+        }).toList();
       } else {
         throw Exception('Failed to load meals by category: ${response.statusCode}');
       }
@@ -138,6 +140,7 @@ class ApiService {
     }
   }
 
+  /// Dispose the HTTP client
   void dispose() {
     _client.close();
   }
